@@ -1,42 +1,42 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { Todo } from '../todo';
-import { TodoDataService } from '../todo-data.service';
+import {
+  AngularFirestore,
+  AngularFirestoreCollection
+} from 'angularfire2/firestore';
+import { Observable } from 'rxjs/Observable';
 
 @Component({
   selector: 'app-todo',
   templateUrl: './todo.component.html',
-  styleUrls: ['./todo.component.css'],
-  providers: [TodoDataService]
+  styleUrls: ['./todo.component.css']
 })
-export class TodoComponent implements OnInit {
-  newTodo: Todo = new Todo();
-  constructor(private todoDataService: TodoDataService) {}
+export class TodoComponent {
+  todo: Todo = new Todo();
+  todoCollectionRef: AngularFirestoreCollection<Todo>;
+  todo$: Observable<Todo[]>;
 
-  ngOnInit() {
+  constructor(private afs: AngularFirestore) {
+    this.todoCollectionRef = this.afs.collection<Todo>('todos');
+    this.todo$ = this.todoCollectionRef.snapshotChanges().map(actions => {
+      return actions.map(action => {
+        const data = action.payload.doc.data() as Todo;
+        const id = action.payload.doc.id;
+        return { id, ...data };
+      });
+    });
   }
 
-  addTodo() {
-    if (this.newTodo.title.trim().length) {
-      this.todoDataService.addTodo(this.newTodo);
-      this.newTodo = new Todo();
+  addTodo(todoDesc: string): void {
+    if (todoDesc && todoDesc.trim().length) {
+      this.todoCollectionRef.add({ description: todoDesc, completed: false });
     }
+    this.todo = new Todo();
   }
-
-  toggleTodoComplete(todo) {
-    this.todoDataService.toggleTodoComplete(todo);
+  updateTodo(todo: Todo) {
+    this.todoCollectionRef.doc(todo.id).update({ completed: !todo.completed });
   }
-
-  removeTodo(todo) {
-    this.todoDataService.deleteTodoById(todo.id);
-    this.getRemaining();
-  }
-
-  get todos() {
-    return this.todoDataService.getAllTodos();
-  }
-
-  getRemaining() {
-    return this.todoDataService.getAllTodos()
-      .filter((todo: Todo) => !todo.hasOwnProperty('complete'));
+  deleteTodo(todo: Todo) {
+    this.todoCollectionRef.doc(todo.id).delete();
   }
 }
